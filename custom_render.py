@@ -20,35 +20,67 @@ from utils.general_utils import safe_state
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams, get_combined_args
 from gaussian_renderer import GaussianModel
+import torch.nn.functional as F
+import numpy as np
 import pdb
 
 global global_args
 
 
+def declare_dir(path):
+    os.makedirs(path, exist_ok=True)
+    return os.path.abspath(path)
+
+
+def torch2numpy(a):
+    return a.detach().cpu().numpy()
+
+
 def render_set(
     model_path, name, iteration, views, gaussians, pipeline, background, my_feat_decoder
 ):
+    global global_args
     render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
     gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
-    pdb.set_trace()
-
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
         render_pkg = render(view, gaussians, pipeline, background)
         rendering = render_pkg["render"]
         gt = view.original_image[0:3, :, :]
-
-        rendered_feat = render_pkg["render_feat"]
         gt_feat = view.feat_chw.cuda()
 
+        rendered_feat = render_pkg["render_feat"]
+        rendered_feat_bhwc = F.interpolate(
+            rendered_feat.unsqueeze(0),
+            size=gt_feat.shape[1:],
+            mode="bilinear",
+            align_corners=False,
+        )
+        resized_feat = my_feat_decoder(rendered_feat_bhwc)
+        resized_feat = resized_feat.squeeze(
+            0
+        )  # both gt feat and resized feat now 96 x h x w
+
+        # save the render image and features
+        output_folder = declare_dir(
+            os.path.join(global_args.special_output_folder, f"{idx}")
+        )
+        # save regular image
         torchvision.utils.save_image(
-            rendering, os.path.join(render_path, "{0:05d}".format(idx) + ".png")
+            rendering,
+            os.path.join(output_folder, "rendering-{0:05d}".format(idx) + ".png"),
         )
         torchvision.utils.save_image(
-            gt, os.path.join(gts_path, "{0:05d}".format(idx) + ".png")
+            gt, os.path.join(output_folder, "gt_image-{0:05d}".format(idx) + ".png")
         )
+        # save rendered features
+        np.save(
+            os.path.join(output_folder, "rendered_feat.npy"), torch2numpy(resized_feat)
+        )
+        # save gt features
+        np.save(os.path.join(output_folder, "gt_feat.npy"), torch2numpy(gt_feat))
 
 
 def render_sets(
@@ -128,9 +160,11 @@ if __name__ == "__main__":
     parser.add_argument("--gaussian_checkpoint", type=str)
     parser.add_argument("--decoder_checkpoint", type=str, required=False, default="")
     parser.add_argument("--feature_size", type=int)
+    parser.add_argument("--special_output_folder", type=str)
     args = get_combined_args(parser)
     print("Rendering " + args.model_path)
     global_args = args
+    makedirs(args.special_output_folder, exist_ok=True)
     # Initialize system state (RNG)
     safe_state(args.quiet)
 
