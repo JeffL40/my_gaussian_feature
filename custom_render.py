@@ -36,7 +36,8 @@ def render_set(
     pdb.set_trace()
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        rendering = render(view, gaussians, pipeline, background)["render"]
+        render_pkg = render(view, gaussians, pipeline, background)
+        rendering = render_pkg["render"]
         gt = view.original_image[0:3, :, :]
 
         rendered_feat = rendering["render_feat"]
