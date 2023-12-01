@@ -40,7 +40,7 @@ def render_set(
         rendering = render_pkg["render"]
         gt = view.original_image[0:3, :, :]
 
-        rendered_feat = rendering["render_feat"]
+        rendered_feat = render_pkg["render_feat"]
         gt_feat = view.feat_chw.cuda()
 
         torchvision.utils.save_image(
