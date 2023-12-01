@@ -59,7 +59,7 @@ def render_sets(
 ):
     global global_args
     with torch.no_grad():
-        gaussians = GaussianModel(dataset.sh_degree, global_args.distill_feature_dim)
+        gaussians = GaussianModel(dataset.sh_degree, 64)  # hard coded 64 for now
         scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False)
 
         ###
@@ -127,7 +127,6 @@ if __name__ == "__main__":
     parser.add_argument("--gaussian_checkpoint", type=str)
     parser.add_argument("--decoder_checkpoint", type=str, required=False, default="")
     parser.add_argument("--feature_size", type=int)
-    parser.add_argument("--distill_feature_dim", type=int, default=64, required=False)
     args = get_combined_args(parser)
     print("Rendering " + args.model_path)
     global_args = args
