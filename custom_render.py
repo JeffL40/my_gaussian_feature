@@ -36,11 +36,13 @@ def declare_dir(path):
 def torch2numpy(a):
     return a.detach().cpu().numpy()
 
+
 def make_in_between_views(views):
     ret = []
+    pdb.set_trace()
     for i in range(len(views) - 1):
         view_1 = views[i]
-        view_2 = views[i+1]
+        view_2 = views[i + 1]
         camera = MiniCam(
             width=view_1.image_width,
             height=view_1.image_height,
@@ -48,11 +50,18 @@ def make_in_between_views(views):
             fovx=view_1.fovx,
             znear=view_1.znear,
             zfar=view_1.zfar,
-            world_view_transform=(view_1.world_view_transform + view_2.world_view_transform) / 2
-            full_proj_transform=(view_1.full_proj_transform + view_2.full_proj_transform) / 2 
+            world_view_transform=(
+                view_1.world_view_transform + view_2.world_view_transform
+            )
+            / 2,
+            full_proj_transform=(
+                view_1.full_proj_transform + view_2.full_proj_transform
+            )
+            / 2,
         )
         ret.append(camera)
     return ret
+
 
 def render_set(
     model_path, name, iteration, views, gaussians, pipeline, background, my_feat_decoder
@@ -63,7 +72,6 @@ def render_set(
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
-
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
         render_pkg = render(view, gaussians, pipeline, background)
