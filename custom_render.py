@@ -39,15 +39,14 @@ def torch2numpy(a):
 
 def make_in_between_views(views):
     ret = []
-    pdb.set_trace()
     for i in range(len(views) - 1):
         view_1 = views[i]
         view_2 = views[i + 1]
         camera = MiniCam(
             width=view_1.image_width,
             height=view_1.image_height,
-            fovy=view_1.fovy,
-            fovx=view_1.fovx,
+            fovy=view_1.FoVy,
+            fovx=view_1.FoVx,
             znear=view_1.znear,
             zfar=view_1.zfar,
             world_view_transform=(
