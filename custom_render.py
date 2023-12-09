@@ -45,8 +45,8 @@ def make_in_between_views(views):
         camera = MiniCam(
             width=view_1.image_width,
             height=view_1.image_height,
-            fovy=view_1.FoVy,
-            fovx=view_1.FoVx,
+            fovy=(view_1.FoVy + view_2.FoVy) / 2,
+            fovx=(view_1.FoVx + view_2.FoVx) / 2,
             znear=view_1.znear,
             zfar=view_1.zfar,
             world_view_transform=(
@@ -80,8 +80,10 @@ def render_set(
     for idx, view in enumerate(tqdm(new_views, desc="Rendering progress")):
         render_pkg = render(view, gaussians, pipeline, background)
         rendering = render_pkg["render"]
-        gt = view.original_image[0:3, :, :]
-        gt_feat = view.feat_chw.cuda()
+        use_gt = not isinstance(view, MiniCam)
+        if use_gt:
+            gt = view.original_image[0:3, :, :]
+            gt_feat = view.feat_chw.cuda()
 
         rendered_feat = render_pkg["render_feat"]
         rendered_feat_bhwc = F.interpolate(
@@ -99,20 +101,19 @@ def render_set(
         output_folder = declare_dir(
             os.path.join(global_args.special_output_folder, f"{idx}")
         )
-        # save regular image
+
         torchvision.utils.save_image(
             rendering,
             os.path.join(output_folder, "rendering-{0:05d}".format(idx) + ".png"),
         )
-        torchvision.utils.save_image(
-            gt, os.path.join(output_folder, "gt_image-{0:05d}".format(idx) + ".png")
-        )
-        # save rendered features
         np.save(
             os.path.join(output_folder, "rendered_feat.npy"), torch2numpy(resized_feat)
         )
-        # save gt features
-        np.save(os.path.join(output_folder, "gt_feat.npy"), torch2numpy(gt_feat))
+        if use_gt:
+            torchvision.utils.save_image(
+                gt, os.path.join(output_folder, "gt_image-{0:05d}".format(idx) + ".png")
+            )
+            np.save(os.path.join(output_folder, "gt_feat.npy"), torch2numpy(gt_feat))
 
 
 def render_sets(
