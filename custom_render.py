@@ -72,7 +72,12 @@ def render_set(
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
-
+    in_between_views = make_in_between_views(views)
+    new_views = []
+    for i in range(len(views)):
+        new_views.append(views[i])
+        if i < len(in_between_views):
+            new_views.append(in_between_views[i])
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
         render_pkg = render(view, gaussians, pipeline, background)
         rendering = render_pkg["render"]
