@@ -77,7 +77,7 @@ def render_set(
         new_views.append(views[i])
         if i < len(in_between_views):
             new_views.append(in_between_views[i])
-    for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
+    for idx, view in enumerate(tqdm(new_views, desc="Rendering progress")):
         render_pkg = render(view, gaussians, pipeline, background)
         rendering = render_pkg["render"]
         gt = view.original_image[0:3, :, :]
