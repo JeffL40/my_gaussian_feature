@@ -144,7 +144,10 @@ def training(
         radii = render_pkg["radii"]
         rendered_feat = render_pkg["render_feat"]
 
-        gt_feat = viewpoint_cam.feat_chw.cuda()
+        if viewpoint_cam.feat_chw is not None:
+            gt_feat = viewpoint_cam.feat_chw.cuda()
+        else:
+            gt_feat = None
 
         if PROFILING_FLAG:
             # Synchronize CUDA stream
@@ -159,20 +162,23 @@ def training(
             1.0 - ssim(image, gt_image)
         )
 
-        rendered_feat_bhwc = F.interpolate(
-            rendered_feat.unsqueeze(0),
-            size=gt_feat.shape[1:],
-            mode="bilinear",
-            align_corners=False,
-        )
-        # gt_feat = torch.ones((rendered_feat.shape[0], 24, 32), device="cuda")
-        if low_dim_feat:
-            resized_feat = my_feat_decoder(rendered_feat_bhwc)
-            resized_feat = resized_feat.squeeze(0)
-        else:
-            resized_feat = rendered_feat_bhwc.squeeze(0)
+        if gt_feat is not None:
+            rendered_feat_bhwc = F.interpolate(
+                rendered_feat.unsqueeze(0),
+                size=gt_feat.shape[1:],
+                mode="bilinear",
+                align_corners=False,
+            )
+            # gt_feat = torch.ones((rendered_feat.shape[0], 24, 32), device="cuda")
+            if low_dim_feat:
+                resized_feat = my_feat_decoder(rendered_feat_bhwc)
+                resized_feat = resized_feat.squeeze(0)
+            else:
+                resized_feat = rendered_feat_bhwc.squeeze(0)
 
-        feat_loss = l2_loss(resized_feat, gt_feat)
+            feat_loss = l2_loss(resized_feat, gt_feat)
+        else:
+            feat_loss = 0.0
 
         loss = loss + 0.1 * feat_loss
 
