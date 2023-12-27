@@ -106,9 +106,9 @@ def training(
             "Faulty card flag set, will sleep for 50ms after each iteration to avoid crashing the GPU"
         )
 
+    global global_args
     if low_dim_feat:
         # TODO(roger): automate this layer based on low_dim_feat flag and GT feat dim
-        global global_args
         my_feat_decoder = feat_decoder([64, 256, 512, global_args.feature_size]).cuda()
         decoder_optimizer = torch.optim.Adam(my_feat_decoder.parameters(), lr=0.001)
 
