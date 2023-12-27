@@ -206,24 +206,28 @@ def training(
                 resized_feat = resized_feat.squeeze(0)
             else:
                 resized_feat = rendered_feat_bhwc.squeeze(0)
-
-            reshaped_features = reshape_features(resized_feat)  # ... x 3(xyz) x k
-            tmp = reshaped_features.transpose(-1, -2)  # ... x k x 3(xyz)
-            # project features onto camera plane
-            camera_intrinsics_matrix = compute_camera_intrinsics_matrix(
-                image.shape[1],
-                image.shape[0],
-                viewpoint_cam.FoVx,
-                viewpoint_cam.FoVy,
-            )  # 3 x 3
-            image_flow = torch.einsum(
-                "...c,jc->...j", tmp, camera_intrinsics_matrix
-            )  # ... x 3(xyh)
-            image_flow = (image_flow / image_flow[..., 2:3])[..., :2]  # ... x k x 2(xy)
-            real_part = torch.real(image_flow)  # ... x k x 2(xy)
-            imag_part = torch.imag(image_flow)
-            processed_feat = torch.concatenate([real_part, imag_part], dim=-1)
-            feat_loss = l2_loss(processed_feat, gt_feat)
+            if global_args.is_flow:
+                reshaped_features = reshape_features(resized_feat)  # ... x 3(xyz) x k
+                tmp = reshaped_features.transpose(-1, -2)  # ... x k x 3(xyz)
+                # project features onto camera plane
+                camera_intrinsics_matrix = compute_camera_intrinsics_matrix(
+                    image.shape[1],
+                    image.shape[0],
+                    viewpoint_cam.FoVx,
+                    viewpoint_cam.FoVy,
+                )  # 3 x 3
+                image_flow = torch.einsum(
+                    "...c,jc->...j", tmp, camera_intrinsics_matrix
+                )  # ... x 3(xyh)
+                image_flow = (image_flow / image_flow[..., 2:3])[
+                    ..., :2
+                ]  # ... x k x 2(xy)
+                real_part = torch.real(image_flow)  # ... x k x 2(xy)
+                imag_part = torch.imag(image_flow)
+                processed_feat = torch.concatenate([real_part, imag_part], dim=-1)
+                feat_loss = l2_loss(processed_feat, gt_feat)
+            else:
+                feat_loss = l2_loss(resized_feat, gt_feat)
         else:
             feat_loss = 0.0
 
