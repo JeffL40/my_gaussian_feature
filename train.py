@@ -25,6 +25,11 @@ from tqdm import tqdm
 from utils.image_utils import psnr
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
+import pdb
+from utils.graphics_utils import (
+    compute_camera_intrinsics_matrix,
+    compute_camera_to_pixel_matrix,
+)
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -36,6 +41,32 @@ except ImportError:
 PROFILING_FLAG = False
 
 global global_args
+
+
+# for flow, unravels the blended_features of shape ... x raveled_xyz_real_coefficients to ... x 3(xyz) x k complex cefficients
+def reshape_features(blended_features):
+    len_real = blended_features.shape[-1] // 2
+    complex_blended_features = (
+        blended_features[..., :len_real] + blended_features[..., len_real:]
+    )
+    len_x = complex_blended_features.shape[-1] // 3
+    x_feats = complex_blended_features[..., :len_x]
+    y_feats = complex_blended_features[..., len_x : 2 * len_x]
+    z_feats = complex_blended_features[..., 2 * len_x :]
+    return torch.stack([x_feats, y_feats, z_feats], dim=-2)
+
+
+def pad_signal_coefficients(complex_coefficients, signal_length):
+    ret = torch.zeros(complex_coefficients.shape[:-1] + (signal_length,))
+    k = complex_coefficients.shape[-1]
+    ret[..., 1 : k + 1] += complex_coefficients
+    ret[..., -k:] += -torch.conj(complex_coefficients)
+    return ret
+
+
+# features of shape ... x k, turn the k into signal_length through decompression
+def ifft_features(features, signal_length):
+    return torch.real(torch.fft.ifft(pad_signal_coefficients(features, signal_length)))
 
 
 def training(
@@ -176,7 +207,23 @@ def training(
             else:
                 resized_feat = rendered_feat_bhwc.squeeze(0)
 
-            feat_loss = l2_loss(resized_feat, gt_feat)
+            reshaped_features = reshape_features(resized_feat)  # ... x 3(xyz) x k
+            tmp = reshaped_features.transpose(-1, -2)  # ... x k x 3(xyz)
+            # project features onto camera plane
+            camera_intrinsics_matrix = compute_camera_intrinsics_matrix(
+                image.shape[1],
+                image.shape[0],
+                viewpoint_cam.FoVx,
+                viewpoint_cam.FoVy,
+            )  # 3 x 3
+            image_flow = torch.einsum(
+                "...c,jc->...j", tmp, camera_intrinsics_matrix
+            )  # ... x 3(xyh)
+            image_flow = (image_flow / image_flow[..., 2:3])[..., :2]  # ... x k x 2(xy)
+            real_part = torch.real(image_flow)  # ... x k x 2(xy)
+            imag_part = torch.imag(image_flow)
+            processed_feat = torch.concatenate([real_part, imag_part], dim=-1)
+            feat_loss = l2_loss(processed_feat, gt_feat)
         else:
             feat_loss = 0.0
 
@@ -414,6 +461,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default=None)
     parser.add_argument("--low_dim_feat", action="store_true", default=False)
+    parser.add_argument("--is_flow", type=int, required=True, help="0 or 1")
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     global_args = args
